@@ -1,0 +1,26 @@
+{
+  "name": "BreadLedger",
+  "short_name": "BreadLedger",
+  "start_url": "/",
+  "display": "standalone",
+  "description": "Bakery management for Nigerian bakers – track sales, debts, and receipts",
+  "lang": "en",
+  "dir": "auto",
+  "theme_color": "#b45309",
+  "background_color": "#fef3c7",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
