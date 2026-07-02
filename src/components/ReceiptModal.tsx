@@ -20,7 +20,6 @@ export default function ReceiptModal({ isOpen, onClose, transaction }: ReceiptMo
   // Ensure all values are numbers
   const totalAmount = Number(transaction.totalAmount) || 0
   const paid = Number(transaction.paid) || 0
-  const balanceAfter = Number(transaction.balanceAfter) || 0
 
   const isReturn = transaction.type === 'return'
 

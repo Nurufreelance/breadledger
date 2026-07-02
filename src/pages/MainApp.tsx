@@ -385,12 +385,12 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
   
   const filteredTransactions = transactions.filter(t =>
     searchTerm === '' || 
-    (t.customerName && t.customerName.toLowerCase().includes(searchTerm.toLowerCase())) || 
+    (t.customer_name && t.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) || 
     (t.items && t.items.toLowerCase().includes(searchTerm.toLowerCase())))
 
   const todaySales = transactions
     .filter(t => t.type === 'sale' && t.date_time && t.date_time.includes(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })))
-    .reduce((sum, t) => sum + (t.totalAmount || 0), 0)
+    .reduce((sum, t) => sum + (t.total_amount || 0), 0)
   
   const totalDebt = customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0)
   const customerCount = customers.length
@@ -496,14 +496,14 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
               <div key={t.id} className={`bg-white rounded-xl shadow p-4 ${t.type === 'return' ? 'border-l-4 border-red-400' : ''}`}>
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-semibold">{t.customerName}</p>
+                    <p className="font-semibold">{t.customer_name}</p>
                     <p className="text-sm text-gray-600">{t.items}</p>
                     <p className="text-xs text-gray-400">{t.date_time}</p>
                     {t.type === 'return' && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full mt-1 inline-block">Return</span>}
                   </div>
                   <div className="text-right">
                     <p className={`font-bold ${t.type === 'return' ? 'text-red-600' : 'text-amber-800'}`}>
-                      {t.type === 'return' ? '-' : ''}₦{Math.abs(t.totalAmount)}
+                      {t.type === 'return' ? '-' : ''}₦{Math.abs(t.total_amount)}
                     </p>
                     {t.type === 'sale' && <p className="text-sm text-green-600">Paid: ₦{t.paid}</p>}
                   </div>
@@ -629,8 +629,8 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {getFilteredTransactions().map(t => {
-                          const overpaid = t.type === 'sale' && t.paid > t.totalAmount ? t.paid - t.totalAmount : 0
-                          const underpaid = t.type === 'sale' && t.totalAmount > t.paid ? t.totalAmount - t.paid : 0
+                          const overpaid = t.type === 'sale' && t.paid > t.total_amount ? t.paid - t.total_amount : 0
+                          const underpaid = t.type === 'sale' && t.total_amount > t.paid ? t.total_amount - t.paid : 0
                           return (
                             <tr key={t.id} className={t.type === 'return' ? 'bg-red-50' : ''}>
                               <td className="px-4 py-3 text-sm text-gray-600">
@@ -638,18 +638,18 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-600">{t.items}</td>
                               <td className="px-4 py-3 text-sm font-medium text-amber-800">
-                                ₦{Math.abs(t.totalAmount).toLocaleString()}
+                                ₦{Math.abs(t.total_amount).toLocaleString()}
                               </td>
                               <td className="px-4 py-3 text-sm">
                                 ₦{t.paid.toLocaleString()}
                                 {overpaid > 0 && <div className="text-xs text-green-500">(Overpaid ₦{overpaid.toLocaleString()})</div>}
                                 {underpaid > 0 && <div className="text-xs text-red-500">(Owes ₦{underpaid.toLocaleString()})</div>}
                               </td>
-                              <td className={`px-4 py-3 text-sm font-medium ${t.balanceAfter > 0 ? 'text-red-600' : t.balanceAfter < 0 ? 'text-green-600' : 'text-gray-600'}`}>
-                                {t.balanceAfter > 0 
-                                  ? `Owes ₦${t.balanceAfter.toLocaleString()}` 
-                                  : t.balanceAfter < 0 
-                                    ? `Credit: ₦${Math.abs(t.balanceAfter).toLocaleString()}` 
+                              <td className={`px-4 py-3 text-sm font-medium ${t.balance_after > 0 ? 'text-red-600' : t.balance_after < 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                                {t.balance_after > 0 
+                                  ? `Owes ₦${t.balance_after.toLocaleString()}` 
+                                  : t.balance_after < 0 
+                                    ? `Credit: ₦${Math.abs(t.balance_after).toLocaleString()}` 
                                     : 'Fully Paid'}
                               </td>
                               <td className="px-4 py-3 text-sm">
@@ -666,9 +666,9 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
                   {selectedMonth && (
                     <div className="mt-4 p-3 bg-amber-50 rounded-lg">
                       <p className="font-semibold">Summary for {selectedMonth}:</p>
-                      <p>Total Sales: ₦{getFilteredTransactions().filter(t => t.type === 'sale').reduce((sum, t) => sum + t.totalAmount, 0).toLocaleString()}</p>
+                      <p>Total Sales: ₦{getFilteredTransactions().filter(t => t.type === 'sale').reduce((sum, t) => sum + t.total_amount, 0).toLocaleString()}</p>
                       <p>Total Paid: ₦{getFilteredTransactions().filter(t => t.type === 'sale').reduce((sum, t) => sum + t.paid, 0).toLocaleString()}</p>
-                      <p>Returns: ₦{getFilteredTransactions().filter(t => t.type === 'return').reduce((sum, t) => sum + Math.abs(t.totalAmount), 0).toLocaleString()}</p>
+                      <p>Returns: ₦{getFilteredTransactions().filter(t => t.type === 'return').reduce((sum, t) => sum + Math.abs(t.total_amount), 0).toLocaleString()}</p>
                     </div>
                   )}
                 </>
