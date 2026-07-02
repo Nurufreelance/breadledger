@@ -17,27 +17,51 @@ interface ReceiptModalProps {
 export default function ReceiptModal({ isOpen, onClose, transaction }: ReceiptModalProps) {
   if (!isOpen) return null
 
+  // Ensure all values are numbers
   const totalAmount = Number(transaction.totalAmount) || 0
   const paid = Number(transaction.paid) || 0
   const balanceAfter = Number(transaction.balanceAfter) || 0
 
-  const overpaid = paid > totalAmount ? paid - totalAmount : 0
-  const underpaid = totalAmount > paid ? totalAmount - paid : 0
+  const isReturn = transaction.type === 'return'
 
-  const getStatusMessage = () => {
-    if (overpaid > 0) {
-      return `✅ Overpaid – Credit: ₦${overpaid.toLocaleString()}`
-    } else if (underpaid > 0) {
-      return `⚠️ Owes: ₦${underpaid.toLocaleString()}`
-    } else {
-      return `✅ Fully Paid`
-    }
-  }
+  // Calculate the difference
+  const difference = totalAmount - paid
 
-  const getBalanceDisplay = () => {
-    if (balanceAfter > 0) return `Owes: ₦${balanceAfter.toLocaleString()}`
-    if (balanceAfter < 0) return `Credit: ₦${Math.abs(balanceAfter).toLocaleString()}`
-    return 'Fully Paid'
+  // Determine status based on actual calculation
+  let statusMessage = ''
+  let statusColor = 'text-gray-700'
+  let balanceMessage = ''
+  let balanceColor = 'text-gray-700'
+
+  if (isReturn) {
+    statusMessage = `🔄 Return – ₦${Math.abs(totalAmount).toLocaleString()} refunded`
+    statusColor = 'text-red-600'
+    balanceMessage = `Refund: ₦${Math.abs(totalAmount).toLocaleString()}`
+    balanceColor = 'text-red-600'
+  } else if (totalAmount === 0) {
+    statusMessage = '⚠️ No payment recorded'
+    statusColor = 'text-gray-500'
+    balanceMessage = 'No balance'
+    balanceColor = 'text-gray-500'
+  } else if (difference > 0) {
+    // Customer owes money (paid less than total)
+    statusMessage = `⚠️ Owes: ₦${difference.toLocaleString()}`
+    statusColor = 'text-red-600'
+    balanceMessage = `Owes: ₦${difference.toLocaleString()}`
+    balanceColor = 'text-red-600'
+  } else if (difference < 0) {
+    // Customer overpaid (paid more than total)
+    const credit = Math.abs(difference)
+    statusMessage = `✅ Overpaid – Credit: ₦${credit.toLocaleString()}`
+    statusColor = 'text-green-600'
+    balanceMessage = `Credit: ₦${credit.toLocaleString()}`
+    balanceColor = 'text-green-600'
+  } else {
+    // Exactly paid
+    statusMessage = '✅ Fully Paid'
+    statusColor = 'text-green-600'
+    balanceMessage = 'Fully Paid'
+    balanceColor = 'text-green-600'
   }
 
   const handlePrint = () => {
@@ -54,17 +78,19 @@ export default function ReceiptModal({ isOpen, onClose, transaction }: ReceiptMo
     const receiptText = `🍞 BREADLEDGER RECEIPT 🍞
 ${transaction.bakeryName ? `🏪 ${transaction.bakeryName}` : ''}
 ─────────────────────
-Customer: ${transaction.customerName}
+${isReturn ? '🔄 RETURN RECEIPT' : '🧾 SALE RECEIPT'}
+─────────────────────
+Customer: ${transaction.customerName || 'Unknown'}
 Date: ${transaction.dateTime || 'No date recorded'}
 ─────────────────────
 Items:
-${transaction.items.split(',').map(item => `  • ${item.trim()}`).join('\n')}
+${transaction.items ? transaction.items.split(',').map(item => `  • ${item.trim()}`).join('\n') : '  No items'}
 ─────────────────────
-Total: ₦${totalAmount.toLocaleString()}
-Amount Paid: ₦${paid.toLocaleString()}
+${isReturn ? `Refund Amount: ₦${Math.abs(totalAmount).toLocaleString()}` : `Total Amount: ₦${totalAmount.toLocaleString()}`}
+${!isReturn ? `Amount Paid: ₦${paid.toLocaleString()}` : ''}
 ─────────────────────
-${getStatusMessage()}
-Customer Balance: ${getBalanceDisplay()}
+Status: ${statusMessage}
+Customer Balance: ${balanceMessage}
 ─────────────────────
 Receipt #: ${transaction.id.slice(-8)}
 🍞 Thank you for your patronage! 🍞`
@@ -97,46 +123,58 @@ Receipt #: ${transaction.id.slice(-8)}
             )}
             <p className="text-xs text-gray-500 mb-2">Official Receipt</p>
             
+            {/* Return Badge */}
+            {isReturn && (
+              <span className="inline-block bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full mb-2">
+                🔄 RETURN
+              </span>
+            )}
+            
             <p className="text-md font-bold text-gray-700 bg-amber-100 inline-block px-4 py-1 rounded-full my-2 shadow-sm">
               📅 {transaction.dateTime || 'No date recorded'}
             </p>
             
-            <p className="text-lg font-semibold mt-2 text-gray-800">Customer: {transaction.customerName}</p>
+            <p className="text-lg font-semibold mt-2 text-gray-800">
+              Customer: {transaction.customerName || 'Unknown'}
+            </p>
             
             <div className="bg-white rounded-xl p-3 my-3 shadow-inner border border-gray-100">
-              <p className="font-bold text-left text-gray-700 mb-2">📋 Items sold:</p>
+              <p className="font-bold text-left text-gray-700 mb-2">📋 Items:</p>
               <div className="text-left text-md space-y-1 mt-1">
-                {transaction.items.split(',').map((item, idx) => (
+                {transaction.items ? transaction.items.split(',').map((item, idx) => (
                   <p key={idx} className="border-b border-dashed border-gray-200 pb-1 text-gray-600">• {item.trim()}</p>
-                ))}
+                )) : <p className="text-gray-400">No items</p>}
               </div>
             </div>
             
             <div className="space-y-2 text-left bg-amber-50 p-3 rounded-xl">
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-gray-700">Total Amount:</span>
-                <span className="font-bold text-amber-800 text-lg">₦{totalAmount.toLocaleString()}</span>
-              </div>
-              {transaction.type === 'sale' && (
+              {isReturn ? (
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-700">Amount Paid:</span>
-                  <span className="font-bold text-green-700 text-lg">₦{paid.toLocaleString()}</span>
+                  <span className="font-semibold text-gray-700">Refund Amount:</span>
+                  <span className="font-bold text-red-600 text-lg">₦{Math.abs(totalAmount).toLocaleString()}</span>
                 </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-gray-700">Total Amount:</span>
+                    <span className="font-bold text-amber-800 text-lg">₦{totalAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-gray-700">Amount Paid:</span>
+                    <span className="font-bold text-green-700 text-lg">₦{paid.toLocaleString()}</span>
+                  </div>
+                </>
               )}
               <div className="flex justify-between items-center border-t border-amber-200 pt-2 mt-2">
                 <span className="font-semibold text-gray-700">Status:</span>
-                <span className={`font-bold text-lg ${
-                  overpaid > 0 ? 'text-green-600' : underpaid > 0 ? 'text-red-600' : 'text-gray-700'
-                }`}>
-                  {getStatusMessage()}
+                <span className={`font-bold text-lg ${statusColor}`}>
+                  {statusMessage}
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-gray-700">Customer Balance:</span>
-                <span className={`font-bold text-lg ${
-                  balanceAfter > 0 ? 'text-red-600' : balanceAfter < 0 ? 'text-green-600' : 'text-gray-700'
-                }`}>
-                  {getBalanceDisplay()}
+                <span className={`font-bold text-lg ${balanceColor}`}>
+                  {balanceMessage}
                 </span>
               </div>
             </div>

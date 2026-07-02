@@ -21,17 +21,18 @@ interface CartItem {
 interface Transaction {
   id: string
   customerId: string
-  customerName: string
+  customer_name: string  // ✅ Match database column name
   items: string
-  totalAmount: number
+  total_amount: number   // ✅ Match database column name
   paid: number
-  balanceAfter: number
-  date_time: string
+  balance_after: number  // ✅ Match database column name
+  date_time: string      // ✅ Match database column name
   type: 'sale' | 'return'
 }
 
 interface Profile {
   bakery_name: string
+  phone: string
 }
 
 const PRICE_PRESETS = [100, 200, 300, 400, 500, 700, 1000, 1200, 1500, 2000]
@@ -78,10 +79,16 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
 
   const [newReturn, setNewReturn] = useState({ customerId: '', price: 100, quantity: 1 })
 
+  // Feedback state
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
+  const [feedbackMessage, setFeedbackMessage] = useState('')
+  const [feedbackSending, setFeedbackSending] = useState(false)
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false)
+
   const fetchProfile = useCallback(async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('bakery_name')
+      .select('bakery_name, phone')
       .eq('id', userId)
       .single()
     if (!error && data) {
@@ -125,7 +132,7 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
     if (!newCustomer.name) return alert('Customer name is required')
     const { data, error } = await supabase
       .from('customers')
-      .insert({ user_id: userId, name: newCustomer.name, phone: newCustomer.phone, address: newCustomer.address, balance: 0 })
+      .insert({ user_id: userId, name: newCustomer.name.trim(), phone: newCustomer.phone, address: newCustomer.address, balance: 0 })
       .select()
       .single()
     if (error) {
@@ -142,16 +149,55 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
   
   const getDiscountedTotal = () => {
     const subtotal = getCartTotal()
-    if (discountValue <= 0) return subtotal
+    if (discountValue <= 0) return Number(subtotal) || 0
     if (discountType === 'percentage') {
       const discountAmount = (subtotal * discountValue) / 100
-      return subtotal - discountAmount
+      return Number(subtotal - discountAmount) || 0
     } else {
-      return subtotal - discountValue
+      return Number(subtotal - discountValue) || 0
+    }
+  }
+
+  async function handleSubmitFeedback() {
+    if (!feedbackMessage.trim()) {
+      alert('Please write your feedback message')
+      return
+    }
+
+    setFeedbackSending(true)
+    try {
+      const { error } = await supabase
+        .from('feedback')
+        .insert({
+          user_id: userId,
+          phone: profile?.phone || 'Unknown',
+          bakery_name: profile?.bakery_name || 'Unknown',
+          message: feedbackMessage.trim(),
+          status: 'pending',
+        })
+
+      if (error) throw error
+
+      setFeedbackSuccess(true)
+      setFeedbackMessage('')
+      setTimeout(() => {
+        setIsFeedbackOpen(false)
+        setFeedbackSuccess(false)
+      }, 2000)
+    } catch (err) {
+      console.error('Feedback error:', err)
+      alert('Failed to send feedback. Please try again.')
+    } finally {
+      setFeedbackSending(false)
     }
   }
 
   async function handleRecordSale() {
+    console.log('=== SALE STARTED ===')
+    console.log('selectedCustomerId:', selectedCustomerId)
+    console.log('cartItems:', cartItems)
+    console.log('userId:', userId)
+    
     try {
       if (!selectedCustomerId) {
         alert('Please select a customer')
@@ -168,9 +214,13 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
         return
       }
 
-      const totalAmount = getDiscountedTotal()
-      const paidNum = parseInt(paidAmount) || 0
-      const newBalance = customer.balance + (totalAmount - paidNum)
+      const totalAmount = Number(getDiscountedTotal()) || 0
+      const paidNum = Number(parseInt(paidAmount)) || 0
+      const newBalance = Number(customer.balance) + (totalAmount - paidNum)
+      
+      console.log('totalAmount:', totalAmount)
+      console.log('paidNum:', paidNum)
+      console.log('newBalance:', newBalance)
       
       let itemsString = cartItems.map(item => `₦${item.price}×${item.quantity}`).join(', ')
       if (discountValue > 0) {
@@ -179,27 +229,33 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
 
       const currentDateTime = getFormattedDateTime()
 
+      const insertData = {
+        user_id: userId,
+        customer_id: selectedCustomerId,
+        customer_name: customer.name,
+        items: itemsString,
+        total_amount: Number(totalAmount),
+        paid: Number(paidNum),
+        balance_after: Number(newBalance),
+        date_time: currentDateTime,
+        type: 'sale',
+      }
+      
+      console.log('Inserting data:', insertData)
+
       const { data: newTransaction, error: txError } = await supabase
         .from('transactions')
-        .insert({
-          user_id: userId,
-          customer_id: selectedCustomerId,
-          customer_name: customer.name,
-          items: itemsString,
-          total_amount: totalAmount,
-          paid: paidNum,
-          balance_after: newBalance,
-          date_time: currentDateTime,
-          type: 'sale',
-        })
+        .insert(insertData)
         .select()
         .single()
 
       if (txError) {
         console.error('Transaction error:', txError)
-        alert('Failed to record sale')
+        alert('Failed to record sale: ' + txError.message)
         return
       }
+
+      console.log('Transaction saved:', newTransaction)
 
       await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomerId)
 
@@ -213,8 +269,8 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
       setIsCartOpen(false)
       
     } catch (err) {
-      console.error(err)
-      alert('An unexpected error occurred')
+      console.error('SALE ERROR:', err)
+      alert('An unexpected error occurred: ' + (err instanceof Error ? err.message : 'Unknown error'))
     }
   }
 
@@ -354,7 +410,7 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
                 <p className="text-amber-200 text-sm mt-1">🏪 {profile.bakery_name}</p>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               {isAdmin && (
                 <button 
                   onClick={() => window.location.href = '/#admin'} 
@@ -363,6 +419,12 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
                   Admin Panel
                 </button>
               )}
+              <button 
+                onClick={() => setIsFeedbackOpen(true)} 
+                className="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer"
+              >
+                💬 Feedback
+              </button>
               <button 
                 onClick={() => supabase.auth.signOut()} 
                 className="bg-amber-700 hover:bg-amber-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
@@ -460,6 +522,7 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
         <button onClick={() => setIsReturnOpen(true)} className="flex-1 bg-red-600 text-white py-3 rounded-xl font-semibold text-base">↩️ Return</button>
       </div>
 
+      {/* Add Customer Modal */}
       <Modal isOpen={isAddCustomerOpen} onClose={() => setIsAddCustomerOpen(false)} title="Add Customer">
         <div className="space-y-4">
           <input type="text" placeholder="Full name" className="w-full border rounded-xl p-3 text-base" value={newCustomer.name} onChange={e => setNewCustomer({...newCustomer, name: e.target.value})} />
@@ -469,6 +532,7 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
         </div>
       </Modal>
 
+      {/* Cart Modal */}
       <Modal isOpen={isCartOpen} onClose={() => { clearCart(); setIsCartOpen(false); }} title="Sell Bread">
         <div className="max-h-[70vh] overflow-y-auto space-y-4">
           <div><h3 className="font-semibold text-gray-700 mb-2">Select bread price:</h3><div className="grid grid-cols-2 gap-2">{PRICE_PRESETS.map(price => <button key={price} onClick={() => addToCart(price)} className="bg-amber-100 hover:bg-amber-200 p-3 rounded-xl text-center font-bold text-amber-800">₦{price}</button>)}</div></div>
@@ -502,6 +566,7 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
         </div>
       </Modal>
 
+      {/* Return Modal */}
       <Modal isOpen={isReturnOpen} onClose={() => setIsReturnOpen(false)} title="Record Return">
         <div className="space-y-4">
           <select className="w-full border rounded-xl p-3 text-base" value={newReturn.customerId} onChange={e => setNewReturn({...newReturn, customerId: e.target.value})}><option value="">Select customer</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -614,24 +679,56 @@ function MainApp({ userId, isAdmin }: { userId: string; isAdmin: boolean }) {
         </div>
       )}
 
-      {/* Receipt Modal */}
-      {selectedReceipt && (
-        <ReceiptModal 
-          isOpen={!!selectedReceipt} 
-          onClose={() => setSelectedReceipt(null)} 
-          transaction={{
-            id: selectedReceipt.id,
-            bakeryName: profile?.bakery_name || '',
-            customerName: selectedReceipt.customerName,
-            items: selectedReceipt.items,
-            totalAmount: Math.abs(selectedReceipt.totalAmount),
-            paid: selectedReceipt.type === 'sale' ? selectedReceipt.paid : 0,
-            balanceAfter: selectedReceipt.balanceAfter,
-            dateTime: selectedReceipt.date_time || 'No date recorded',
-            type: selectedReceipt.type,
-          }} 
-        />
-      )}
+      {/* Feedback Modal */}
+      <Modal isOpen={isFeedbackOpen} onClose={() => { setIsFeedbackOpen(false); setFeedbackMessage(''); setFeedbackSuccess(false); }} title="💬 Send Feedback">
+        <div className="space-y-4">
+          {feedbackSuccess ? (
+            <div className="text-center py-4">
+              <span className="text-4xl">✅</span>
+              <p className="text-green-600 font-semibold mt-2">Thank you for your feedback!</p>
+              <p className="text-sm text-gray-500">We'll review it and get back to you.</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600">Have a complaint, suggestion, or advice? Let us know how we can serve you better.</p>
+              <textarea
+                placeholder="Write your message here..."
+                className="w-full border rounded-xl p-3 text-base min-h-[120px] focus:outline-none focus:ring-2 focus:ring-purple-500"
+                value={feedbackMessage}
+                onChange={e => setFeedbackMessage(e.target.value)}
+                disabled={feedbackSending}
+              />
+              <button
+                onClick={handleSubmitFeedback}
+                disabled={feedbackSending || !feedbackMessage.trim()}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50"
+              >
+                {feedbackSending ? 'Sending...' : 'Submit Feedback'}
+              </button>
+              <p className="text-xs text-gray-400 text-center">We value your feedback and will respond within 24 hours.</p>
+            </>
+          )}
+        </div>
+      </Modal>
+
+    {/* Receipt Modal */}
+{selectedReceipt && (
+  <ReceiptModal 
+    isOpen={!!selectedReceipt} 
+    onClose={() => setSelectedReceipt(null)} 
+    transaction={{
+      id: selectedReceipt.id,
+      bakeryName: profile?.bakery_name || '',
+      customerName: selectedReceipt.customer_name,  // ✅ Use customer_name (from database)
+      items: selectedReceipt.items,
+      totalAmount: Number(selectedReceipt.total_amount) || 0,  // ✅ Use total_amount (from database)
+      paid: Number(selectedReceipt.paid) || 0,
+      balanceAfter: Number(selectedReceipt.balance_after) || 0,
+      dateTime: selectedReceipt.date_time || 'No date recorded',
+      type: selectedReceipt.type,
+    }} 
+  />
+)}     
     </div>
   )
 }
